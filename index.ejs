@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruan Game Store — Contas Blox Fruits</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">RUAN GAME STORE</div>
+    <button class="cart-btn" id="openCart">🛒 Carrinho (<span id="cartCount"><%= cartCount %></span>)</button>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <h2 class="section-title">Contas disponíveis</h2>
+    <div class="grid">
+      <% products.forEach(function(p){ %>
+        <div class="card">
+          <div class="card-top">
+            <span class="tag"><%= p.rarity %></span>
+          </div>
+          <h3><%= p.name %></h3>
+          <div class="card-price">
+            <span class="price">R$ <%= p.price.toFixed(2).replace('.', ',') %></span>
+            <button class="add-btn" data-id="<%= p.id %>">Adicionar</button>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+</main>
+
+<div id="cartOverlay"></div>
+<div id="cartDrawer">
+  <button class="close-btn" id="closeCart">×</button>
+  <h2 class="section-title">Seu carrinho</h2>
+  <div id="cartItems"></div>
+  <p class="empty-msg" id="emptyMsg" style="display:none;">Seu carrinho está vazio.</p>
+  <div class="cart-total">
+    <span>Total</span>
+    <span id="cartTotal">R$ 0,00</span>
+  </div>
+  <form class="checkout-form" id="checkoutForm">
+    <input type="text" id="contact" name="contact" placeholder="Seu Discord ou e-mail" required>
+    <button type="submit">Finalizar pedido</button>
+  </form>
+  <p class="order-success" id="orderSuccess" style="display:none;"></p>
+</div>
+
+<script>
+  const cartDrawer = document.getElementById('cartDrawer');
+  const cartOverlay = document.getElementById('cartOverlay');
+  const cartItemsEl = document.getElementById('cartItems');
+  const cartTotalEl = document.getElementById('cartTotal');
+  const cartCountEl = document.getElementById('cartCount');
+  const emptyMsg = document.getElementById('emptyMsg');
+  const orderSuccess = document.getElementById('orderSuccess');
+
+  function fmt(n){ return 'R$ ' + n.toFixed(2).replace('.', ','); }
+
+  function renderCart(data){
+    cartItemsEl.innerHTML = '';
+    if(data.items.length === 0){
+      emptyMsg.style.display = 'block';
+    } else {
+      emptyMsg.style.display = 'none';
+      data.items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'cart-item';
+        div.innerHTML = `
+          <span>${item.name} x${item.qty}</span>
+          <span>${fmt(item.subtotal)} <button data-id="${item.id}">remover</button></span>
+        `;
+        cartItemsEl.appendChild(div);
+      });
+    }
+    cartTotalEl.textContent = fmt(data.total);
+    cartCountEl.textContent = data.count;
+  }
+
+  async function refreshCart(){
+    const res = await fetch('/api/cart');
+    const data = await res.json();
+    renderCart(data);
+  }
+
+  document.getElementById('openCart').addEventListener('click', () => {
+    cartDrawer.classList.add('open');
+    cartOverlay.classList.add('open');
+    refreshCart();
+  });
+  document.getElementById('closeCart').addEventListener('click', () => {
+    cartDrawer.classList.remove('open');
+    cartOverlay.classList.remove('open');
+  });
+  cartOverlay.addEventListener('click', () => {
+    cartDrawer.classList.remove('open');
+    cartOverlay.classList.remove('open');
+  });
+
+  document.querySelectorAll('.add-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const productId = btn.dataset.id;
+      const res = await fetch('/api/cart/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId })
+      });
+      const data = await res.json();
+      renderCart(data);
+      cartDrawer.classList.add('open');
+      cartOverlay.classList.add('open');
+    });
+  });
+
+  cartItemsEl.addEventListener('click', async (e) => {
+    if(e.target.tagName === 'BUTTON'){
+      const productId = e.target.dataset.id;
+      const res = await fetch('/api/cart/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId })
+      });
+      const data = await res.json();
+      renderCart(data);
+    }
+  });
+
+  document.getElementById('checkoutForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const contact = document.getElementById('contact').value;
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact })
+    });
+    const data = await res.json();
+    if(res.ok){
+      orderSuccess.textContent = `Pedido #${data.orderId} enviado! Total: ${fmt(data.total)}. Confirma no Discord.`;
+      orderSuccess.style.display = 'block';
+      refreshCart();
+    } else {
+      orderSuccess.textContent = data.error || 'Erro ao enviar pedido.';
+      orderSuccess.style.display = 'block';
+    }
+  });
+</script>
+
+</body>
+</html>
